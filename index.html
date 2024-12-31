@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>휘매쓰 연산 챌린지!</title>
+  <style>
+    /* ===== 흑백 테마 + 기본 스타일 ===== */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #fff;
+      color: #000;
+      font-family: sans-serif;
+      text-align: center;
+    }
+
+    h1, h2, h3, p {
+      margin: 10px;
+      padding: 0;
+    }
+
+    button {
+      background-color: #000;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background-color: #333;
+    }
+
+    /* 메인 컨테이너 */
+    #game-container {
+      width: 80%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      box-sizing: border-box;
+      border: 1px solid #000;
+      margin-top: 20px;
+    }
+
+    /* 난이도 선택 화면 */
+    #difficulty-selection {
+      display: none; /* 초기에는 숨김 */
+    }
+
+    /* 게임 진행 화면 */
+    #quiz-section {
+      display: none; /* 초기에는 숨김 */
+      margin-top: 20px;
+    }
+
+    /* 에너지바(시간 표시) */
+    #energy-bar-wrapper {
+      width: 80%;
+      max-width: 400px;
+      height: 20px;
+      border: 1px solid #000;
+      margin: 0 auto 10px auto;
+      position: relative;
+    }
+    #energy-bar {
+      background-color: #000;
+      width: 100%;
+      height: 100%;
+      transition: width 0.2s linear;
+    }
+
+    /* 총 게임 시간 표시 */
+    #total-time {
+      margin-bottom: 10px;
+    }
+
+    /* 문제/입력 란 */
+    #question {
+      font-size: 1.2em;
+      margin: 20px 0;
+    }
+    #answer-input {
+      width: 100px;
+      padding: 5px;
+      text-align: center;
+      margin-right: 5px;
+    }
+
+    /* 결과/점수 */
+    #score-display {
+      margin: 10px 0;
+    }
+
+    /* 남은 기회 */
+    #chances {
+      margin: 10px 0;
+    }
+
+    /* 정답 표시 */
+    #correct-answer {
+      margin-top: 10px;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <h1>휘매쓰 연산 챌린지!</h1>
+  <div id="game-container">
+    <!-- 난이도 선택 화면 -->
+    <div id="difficulty-selection">
+      <h2>난이도를 선택하세요</h2>
+      <button onclick="startGame('top')">최상 (20초/문제, +20점)</button>
+      <button onclick="startGame('high')">상 (30초/문제, +15점)</button>
+      <button onclick="startGame('mid')">중 (40초/문제, +13점)</button>
+      <button onclick="startGame('low')">하 (시간 무제한, +10점)</button>
+    </div>
+
+    <!-- 게임 진행 화면 -->
+    <div id="quiz-section">
+      <div id="total-time">총 게임 시간: <span id="total-time-text">0초</span></div>
+      <div id="chances">남은 기회: <span id="chances-text">3</span></div>
+      <div id="score-display">점수: <span id="score-text">0</span></div>
+
+      <!-- 에너지바(시간 표시) -->
+      <div id="energy-bar-wrapper">
+        <div id="energy-bar"></div>
+      </div>
+
+      <!-- 문제 영역 -->
+      <div id="question"></div>
+
+      <!-- 정답 입력 -->
+      <input type="text" id="answer-input" placeholder="정답" />
+      <button id="submit-answer">확인</button>
+
+      <!-- 정답 안내 표시 -->
+      <div id="correct-answer"></div>
+    </div>
+  </div>
+
+  <script>
+    /**********************************************
+     * 전역 변수
+     **********************************************/
+    let difficulty = null;        // 난이도
+    let timePerQuestion = 0;      // 문제당 제한 시간
+    let scorePerCorrect = 0;      // 문제당 점수
+    let timerInterval = null;     // 개별 문제 타이머 setInterval
+    let totalTimeInterval = null; // 총 게임 시간 setInterval
+    let timeLeft = 0;             // 현재 문제 남은 시간(초)
+    let totalTime = 0;            // 전체 게임 진행 시간(초)
+    let chances = 3;              // 남은 기회(3번 틀리면 끝)
+    let score = 0;                // 현재 점수
+    let currentAnswer = null;     // 현재 문제의 정답
+
+    /**********************************************
+     * 초기화/시작
+     **********************************************/
+    window.onload = function() {
+      // 첫 화면: 난이도 선택 메뉴 보이기
+      document.getElementById('difficulty-selection').style.display = 'block';
+    };
+
+    // 난이도 선택 후 게임 시작
+    function startGame(selectedDifficulty) {
+      // 난이도별 설정
+      switch(selectedDifficulty) {
+        case 'top':
+          timePerQuestion = 20;
+          scorePerCorrect = 20;
+          break;
+        case 'high':
+          timePerQuestion = 30;
+          scorePerCorrect = 15;
+          break;
+        case 'mid':
+          timePerQuestion = 40;
+          scorePerCorrect = 13;
+          break;
+        case 'low':
+          timePerQuestion = 0; // 시간 무제한
+          scorePerCorrect = 10;
+          break;
+      }
+      difficulty = selectedDifficulty;
+
+      // 난이도 선택 화면 숨기고 게임 화면 보이기
+      document.getElementById('difficulty-selection').style.display = 'none';
+      document.getElementById('quiz-section').style.display = 'block';
+
+      // 총 게임 시간 표시 타이머 시작
+      totalTimeInterval = setInterval(function() {
+        totalTime++;
+        document.getElementById('total-time-text').textContent = totalTime + '초';
+      }, 1000);
+
+      // 첫 문제 출제
+      getNewQuestion();
+    }
+
+    /**********************************************
+     * 문제 생성/출제
+     **********************************************/
+    function getNewQuestion() {
+      // 에너지바(시간) 초기화
+      resetEnergyBar();
+
+      // 랜덤 소수점(두 자리) 문제 만들기
+      let num1 = (Math.random() * 0.9 + 0.1).toFixed(2); 
+      let num2 = (Math.random() * 0.9 + 0.1).toFixed(2);
+
+      // 실제 정답
+      currentAnswer = (parseFloat(num1) + parseFloat(num2)).toFixed(2);
+
+      // 문제 출력
+      document.getElementById('question').textContent = `${num1} + ${num2} = ?`;
+      document.getElementById('answer-input').value = '';
+      document.getElementById('correct-answer').textContent = '';
+
+      // 시간제한이 0이 아닌 경우(최상, 상, 중)만 타이머 동작
+      if (timePerQuestion > 0) {
+        timeLeft = timePerQuestion;
+        updateEnergyBar(); // 에너지바 그리기
+        timerInterval = setInterval(handleTimer, 1000);
+      }
+    }
+
+    /**********************************************
+     * 에너지바 & 시간 처리
+     **********************************************/
+    function handleTimer() {
+      timeLeft--;
+      updateEnergyBar();
+      if (timeLeft <= 0) {
+        // 시간 다 됨 -> 기회 1 감소
+        clearInterval(timerInterval);
+        loseChance();
+      }
+    }
+
+    // 에너지바 초기화
+    function resetEnergyBar() {
+      clearInterval(timerInterval);
+      let bar = document.getElementById('energy-bar');
+      bar.style.width = '100%';
+    }
+
+    // 에너지바 업데이트(숫자는 표시하지 않고 막대길이로만)
+    function updateEnergyBar() {
+      let bar = document.getElementById('energy-bar');
+      let percent = (timeLeft / timePerQuestion) * 100;
+      bar.style.width = percent + '%';
+    }
+
+    /**********************************************
+     * 답안 제출 처리
+     **********************************************/
+    document.getElementById('submit-answer').addEventListener('click', checkAnswer);
+    document.getElementById('answer-input').addEventListener('keypress', function(e) {
+      if(e.key === 'Enter') {
+        checkAnswer();
+      }
+    });
+
+    function checkAnswer() {
+      // 시간제한 중단
+      clearInterval(timerInterval);
+
+      let userInput = document.getElementById('answer-input').value.trim();
+      if (!userInput) return; // 빈칸 방지
+
+      if (userInput === currentAnswer) {
+        // 정답
+        score += scorePerCorrect;
+        document.getElementById('score-text').textContent = score;
+      } else {
+        // 오답 -> 정답 표시 + 기회 1 감소
+        document.getElementById('correct-answer').textContent = `정답: ${currentAnswer}`;
+        loseChance();
+        return; 
+      }
+
+      // 정답을 맞추었을 경우에도 바로 다음 문제
+      getNewQuestion();
+    }
+
+    /**********************************************
+     * 기회 소진 처리
+     **********************************************/
+    function loseChance() {
+      chances--;
+      document.getElementById('chances-text').textContent = chances;
+
+      if(chances <= 0) {
+        // 게임 종료
+        endGame();
+      } else {
+        // 기회 남아있으면 새 문제
+        getNewQuestion();
+      }
+    }
+
+    /**********************************************
+     * 게임 종료
+     **********************************************/
+    function endGame() {
+      // 전체 타이머 중단
+      clearInterval(timerInterval);
+      clearInterval(totalTimeInterval);
+
+      alert(`게임 종료!\n최종 점수: ${score}\n총 소요 시간: ${totalTime}초`);
+      location.reload(); // 페이지 새로고침(게임 리셋)
+    }
+  </script>
+</body>
+</html>
