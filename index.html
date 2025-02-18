@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>휘매쓰 연산 챌린지!</title>
+  <title>소수 두 자리의 덧셈</title>
   <style>
     /* ===== 흑백 테마 + 기본 스타일 ===== */
     body {
@@ -104,11 +104,13 @@
   </style>
 </head>
 <body>
-  <h1>휘매쓰 연산 챌린지!</h1>
+  <h1>소수 두 자리의 덧셈</h1>
   <div id="game-container">
     <!-- 난이도 선택 화면 -->
     <div id="difficulty-selection">
       <h2>난이도를 선택하세요</h2>
+      <input type="text" id="player-name" placeholder="이름을 입력하세요" />
+      <br>
       <button onclick="startGame('top')">최상 (20초/문제, +20점)</button>
       <button onclick="startGame('high')">상 (30초/문제, +15점)</button>
       <button onclick="startGame('mid')">중 (40초/문제, +13점)</button>
@@ -132,9 +134,15 @@
       <!-- 정답 입력 -->
       <input type="text" id="answer-input" placeholder="정답" />
       <button id="submit-answer">확인</button>
+      <button id="next-question" style="display:none;">다음 문제</button>
 
       <!-- 정답 안내 표시 -->
       <div id="correct-answer"></div>
+
+      <!-- 점수전송 버튼 (게임 종료 후) -->
+      <button id="send-score-button" style="display:none;">점수전송</button>
+      <!-- 전송 결과 표시 -->
+      <div id="response"></div>
     </div>
   </div>
 
@@ -149,9 +157,10 @@
     let totalTimeInterval = null; // 총 게임 시간 setInterval
     let timeLeft = 0;             // 현재 문제 남은 시간(초)
     let totalTime = 0;            // 전체 게임 진행 시간(초)
-    let chances = 3;              // 남은 기회(3번 틀리면 끝)
+    let chances = 3;              // 남은 기회 (3번 틀리면 끝)
     let score = 0;                // 현재 점수
     let currentAnswer = null;     // 현재 문제의 정답
+    let playerName = "";          // 플레이어 이름
 
     /**********************************************
      * 초기화/시작
@@ -159,10 +168,29 @@
     window.onload = function() {
       // 첫 화면: 난이도 선택 메뉴 보이기
       document.getElementById('difficulty-selection').style.display = 'block';
+
+      // "다음 문제" 버튼 이벤트 리스너
+      document.getElementById('next-question').addEventListener('click', function() {
+        // 다음 문제로 넘어가기 전에 확인 버튼을 다시 활성화
+        document.getElementById('submit-answer').disabled = false;
+        getNewQuestion();
+      });
+
+      // "점수전송" 버튼 이벤트 리스너
+      document.getElementById('send-score-button').addEventListener('click', function() {
+        saveData("소수 두 자리의 덧셈", playerName, score, totalTime);
+      });
     };
 
     // 난이도 선택 후 게임 시작
     function startGame(selectedDifficulty) {
+      // 플레이어 이름 입력 확인
+      playerName = document.getElementById('player-name').value.trim();
+      if (!playerName) {
+        alert("이름을 입력하세요.");
+        return;
+      }
+
       // 난이도별 설정
       switch(selectedDifficulty) {
         case 'top':
@@ -205,6 +233,10 @@
       // 에너지바(시간) 초기화
       resetEnergyBar();
 
+      // "다음 문제" 버튼 숨기기 및 이전 정답 메시지 삭제
+      document.getElementById('next-question').style.display = 'none';
+      document.getElementById('correct-answer').textContent = '';
+
       // 랜덤 소수점(두 자리) 문제 만들기
       let num1 = (Math.random() * 0.9 + 0.1).toFixed(2); 
       let num2 = (Math.random() * 0.9 + 0.1).toFixed(2);
@@ -215,7 +247,9 @@
       // 문제 출력
       document.getElementById('question').textContent = `${num1} + ${num2} = ?`;
       document.getElementById('answer-input').value = '';
-      document.getElementById('correct-answer').textContent = '';
+      // answer input과 확인 버튼 활성화
+      document.getElementById('answer-input').disabled = false;
+      document.getElementById('submit-answer').disabled = false;
 
       // 시간제한이 0이 아닌 경우(최상, 상, 중)만 타이머 동작
       if (timePerQuestion > 0) {
@@ -232,9 +266,14 @@
       timeLeft--;
       updateEnergyBar();
       if (timeLeft <= 0) {
-        // 시간 다 됨 -> 기회 1 감소
+        // 시간이 다 됨 → 기회 1 감소
         clearInterval(timerInterval);
         loseChance();
+        document.getElementById('submit-answer').disabled = true;
+        // 게임이 끝나지 않았다면 "다음 문제" 버튼 보이기
+        if(chances > 0) {
+          document.getElementById('next-question').style.display = 'inline-block';
+        }
       }
     }
 
@@ -245,7 +284,7 @@
       bar.style.width = '100%';
     }
 
-    // 에너지바 업데이트(숫자는 표시하지 않고 막대길이로만)
+    // 에너지바 업데이트 (숫자 대신 막대 길이로 표시)
     function updateEnergyBar() {
       let bar = document.getElementById('energy-bar');
       let percent = (timeLeft / timePerQuestion) * 100;
@@ -267,21 +306,23 @@
       clearInterval(timerInterval);
 
       let userInput = document.getElementById('answer-input').value.trim();
-      if (!userInput) return; // 빈칸 방지
+      if (!userInput) return; // 빈칸이면 동작하지 않음
 
       if (userInput === currentAnswer) {
-        // 정답
+        // 정답 → 점수 추가
         score += scorePerCorrect;
         document.getElementById('score-text').textContent = score;
       } else {
-        // 오답 -> 정답 표시 + 기회 1 감소
+        // 오답 → 정답 표시 및 기회 1 감소
         document.getElementById('correct-answer').textContent = `정답: ${currentAnswer}`;
         loseChance();
-        return; 
+        if(chances <= 0) return;
       }
 
-      // 정답을 맞추었을 경우에도 바로 다음 문제
-      getNewQuestion();
+      // 답안을 제출한 후 재제출 방지를 위해 확인 버튼 비활성화
+      document.getElementById('submit-answer').disabled = true;
+      // 정답 또는 오답 발생 시에만 "다음 문제" 버튼 보이기
+      document.getElementById('next-question').style.display = 'inline-block';
     }
 
     /**********************************************
@@ -292,12 +333,10 @@
       document.getElementById('chances-text').textContent = chances;
 
       if(chances <= 0) {
-        // 게임 종료
+        // 기회가 다 떨어지면 게임 종료
         endGame();
-      } else {
-        // 기회 남아있으면 새 문제
-        getNewQuestion();
       }
+      // 정답/오답 후엔 바로 다음 문제로 넘어가지 않고 "다음 문제" 버튼을 통해 넘어감.
     }
 
     /**********************************************
@@ -308,8 +347,50 @@
       clearInterval(timerInterval);
       clearInterval(totalTimeInterval);
 
-      alert(`게임 종료!\n최종 점수: ${score}\n총 소요 시간: ${totalTime}초`);
-      location.reload(); // 페이지 새로고침(게임 리셋)
+      // 입력창 및 버튼 비활성화
+      document.getElementById('answer-input').disabled = true;
+      document.getElementById('submit-answer').disabled = true;
+      document.getElementById('next-question').style.display = 'none';
+
+      // 최종 결과 메시지 표시
+      document.getElementById('question').textContent = `게임 종료! 최종 점수: ${score}, 총 소요 시간: ${totalTime}초`;
+
+      // 게임 종료 후 "점수전송" 버튼 보이기
+      document.getElementById('send-score-button').style.display = 'inline-block';
+    }
+
+    /**********************************************
+     * 데이터 전송 함수 (제공된 코드)
+     **********************************************/
+    function saveData(game, name, score, elapsedTime) {
+        const FUNCTION_URL = "https://us-central1-record-f420d.cloudfunctions.net/report";
+
+        const requestData = {
+            game,
+            name,
+            score: parseInt(score, 10),
+            elapsedTime: parseInt(elapsedTime, 10)
+        };
+
+        fetch(FUNCTION_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json().then(data => ({status: response.status, ok: response.ok, data})))
+        .then(result => {
+            if (result.ok) {
+                document.getElementById('response').innerText = `성공: ${JSON.stringify(result.data, null, 2)}`;
+            } else {
+                document.getElementById('response').innerText = `오류: ${JSON.stringify(result.data, null, 2)}`;
+            }
+        })
+        .catch(error => {
+            console.error('요청 실패:', error);
+            document.getElementById('response').innerText = `네트워크 오류: ${error.message}`;
+        });
     }
   </script>
 </body>
